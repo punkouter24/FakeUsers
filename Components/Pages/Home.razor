@@ -1,0 +1,155 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+@using Azure.Data.Tables
+@inject HttpClient Http
+@inject TableServiceClient TableServiceClient
+
+<h3>Generate and Save Fake Users</h3>
+
+<div>
+    <label>Number of Users:</label>
+    <input type="number" @bind="numberOfUsers" min="1" max="10" />
+    <button @onclick="GenerateUsers">Generate</button>
+</div>
+
+@if (users != null && users.Any())
+{
+    <div class="user-display">
+        @foreach (var user in users)
+        {
+            <p>@user.Name -  @user.Gender</p>
+        }
+    </div>
+
+    <div>
+        <label>List Name:</label>
+        <input type="text" @bind="listName" />
+        <button @onclick="SaveList">Save List</button>
+    </div>
+}
+
+@if (savedLists != null && savedLists.Any())
+{
+    <div>
+        <label>Select a List:</label>
+        <select @onchange="SelectList">
+            @foreach (var list in savedLists)
+            {
+                <option value="@list">@list</option>
+            }
+        </select>
+    </div>
+}
+
+@code {
+    int numberOfUsers = 1;
+    string listName;
+    List<User> users = new List<User>();
+    List<string> savedLists = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        savedLists = await GetAllLists();
+    }
+
+    private async Task GenerateUsers()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"https://randomuser.me/api/?results={numberOfUsers}&inc=name,location,gender");
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+
+
+                var options = new System.Text.Json.JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true,
+    IgnoreNullValues = true
+};
+                var apiResponse = System.Text.Json.JsonSerializer.Deserialize<RandomUserResponse>(content, options);
+
+
+                //     var apiResponse = System.Text.Json.JsonSerializer.Deserialize<RandomUserResponse>(content);
+               users = apiResponse?.Results.Select(r => new User
+                {
+                    Name = $"{r.Name.First} {r.Name.Last}",
+                    Gender = r.Gender
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions (e.g., display an error message)
+        }
+    }
+
+    async Task SaveList()
+    {
+        var tableClient = TableServiceClient.GetTableClient("UserTable");
+        await tableClient.CreateIfNotExistsAsync();
+
+        foreach (var user in users)
+        {
+            var userEntity = new UserEntity
+                {
+                    PartitionKey = listName,
+                    RowKey = Guid.NewGuid().ToString(),
+                    Name = user.Name,
+                    Gender = user.Gender
+                };
+
+            await tableClient.AddEntityAsync(userEntity);
+        }
+    }
+
+    async Task<List<User>> RetrieveList(string listName)
+    {
+        var tableClient = TableServiceClient.GetTableClient("UserTable");
+        var entities = tableClient.Query<UserEntity>(entity => entity.PartitionKey == listName);
+        return entities.Select(e => new User
+            {
+                Name = e.Name,
+                Gender = e.Gender
+            }).ToList();
+    }
+
+    async Task<List<string>> GetAllLists()
+    {
+        var tableClient = TableServiceClient.GetTableClient("UserTable");
+        var queryResults = tableClient.Query<UserEntity>(select: new[] { "PartitionKey" });
+        return queryResults.Select(entity => entity.PartitionKey).Distinct().ToList();
+    }
+
+    async Task SelectList(ChangeEventArgs e)
+    {
+        string selectedListName = e.Value.ToString();
+        users = await RetrieveList(selectedListName);
+    }
+
+    public class RandomUserResponse
+    {
+        public List<ApiUser> Results { get; set; }
+    }
+
+    public class ApiUser
+    {
+        public string Gender { get; set; }
+        public Name Name { get; set; }
+    }
+
+    public class Name
+    {
+        public string First { get; set; }
+        public string Last { get; set; }
+    }
+
+  
+
+    public class User
+    {
+        public string Name { get; set; }
+        public string Gender { get; set; }
+    }
+}
