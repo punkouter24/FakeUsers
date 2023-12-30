@@ -1,44 +1,26 @@
 ﻿@page "/"
 @rendermode InteractiveServer
-
 @using Azure.Data.Tables
 @inject HttpClient Http
 @inject TableServiceClient TableServiceClient
-
 <h3>Generate and Save Fake Users</h3>
-
 <div>
     <label>Number of Users:</label>
     <input type="number" @bind="numberOfUsers" min="1" max="10" />
     <button @onclick="GenerateUsers">Generate</button>
 </div>
-
 @if (users != null && users.Any())
 {
     <div class="user-display">
-        @foreach (var user in users)
+    @foreach (var user in users)
         {
-            <p>@user.Name -  @user.Gender</p>
+            <p>@user.Name - @user.Gender</p>
         }
     </div>
-
     <div>
         <label>List Name:</label>
         <input type="text" @bind="listName" />
         <button @onclick="SaveList">Save List</button>
-    </div>
-}
-
-@if (savedLists != null && savedLists.Any())
-{
-    <div>
-        <label>Select a List:</label>
-        <select @onchange="SelectList">
-            @foreach (var list in savedLists)
-            {
-                <option value="@list">@list</option>
-            }
-        </select>
     </div>
 }
 
@@ -64,19 +46,19 @@
 
 
                 var options = new System.Text.Json.JsonSerializerOptions
-{
-    PropertyNameCaseInsensitive = true,
-    IgnoreNullValues = true
-};
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        IgnoreNullValues = true
+                    };
                 var apiResponse = System.Text.Json.JsonSerializer.Deserialize<RandomUserResponse>(content, options);
 
 
-                //     var apiResponse = System.Text.Json.JsonSerializer.Deserialize<RandomUserResponse>(content);
-               users = apiResponse?.Results.Select(r => new User
-                {
-                    Name = $"{r.Name.First} {r.Name.Last}",
-                    Gender = r.Gender
-                }).ToList();
+                // var apiResponse = System.Text.Json.JsonSerializer.Deserialize<RandomUserResponse>(content);
+                users = apiResponse?.Results.Select(r => new User
+                    {
+                        Name = $"{r.Name.First} {r.Name.Last}",
+                        Gender = r.Gender
+                    }).ToList();
             }
         }
         catch (Exception ex)
@@ -104,16 +86,7 @@
         }
     }
 
-    async Task<List<User>> RetrieveList(string listName)
-    {
-        var tableClient = TableServiceClient.GetTableClient("UserTable");
-        var entities = tableClient.Query<UserEntity>(entity => entity.PartitionKey == listName);
-        return entities.Select(e => new User
-            {
-                Name = e.Name,
-                Gender = e.Gender
-            }).ToList();
-    }
+
 
     async Task<List<string>> GetAllLists()
     {
@@ -122,11 +95,7 @@
         return queryResults.Select(entity => entity.PartitionKey).Distinct().ToList();
     }
 
-    async Task SelectList(ChangeEventArgs e)
-    {
-        string selectedListName = e.Value.ToString();
-        users = await RetrieveList(selectedListName);
-    }
+   
 
     public class RandomUserResponse
     {
@@ -145,7 +114,7 @@
         public string Last { get; set; }
     }
 
-  
+
 
     public class User
     {

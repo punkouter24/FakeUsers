@@ -1,0 +1,69 @@
+@page "/displaylist"
+@rendermode InteractiveServer
+
+@using Azure.Data.Tables
+@inject TableServiceClient TableServiceClient
+
+<h3>Display Saved Users</h3>
+
+@if (savedLists != null && savedLists.Any())
+{
+    <div>
+    <label>Select a List:</label>
+    <select @onchange="SelectList">
+        @foreach (var list in savedLists)
+            {
+                <option value="@list">@list</option>
+            }
+        </select>
+    </div>
+    @if (users != null && users.Any())
+    {
+        <div class="user-display">
+    @foreach (var user in users)
+            {
+                <p>@user.Name - @user.Gender</p>
+            }
+        </div>
+    }
+}
+
+@code {
+    List<User> users = new List<User>();
+    List<string> savedLists = new List<string>();
+    protected override async Task OnInitializedAsync()
+    {
+        savedLists = await GetAllLists();
+
+        if (savedLists.Any())
+        {
+            users = await RetrieveList(savedLists.First());
+        }
+    }
+    async Task<List<User>> RetrieveList(string listName)
+    {
+        var tableClient = TableServiceClient.GetTableClient("UserTable");
+        var entities = tableClient.Query<UserEntity>(entity => entity.PartitionKey == listName);
+        return entities.Select(e => new User
+            {
+                Name = e.Name,
+                Gender = e.Gender
+            }).ToList();
+    }
+    async Task<List<string>> GetAllLists()
+    {
+        var tableClient = TableServiceClient.GetTableClient("UserTable");
+        var queryResults = tableClient.Query<UserEntity>(select: new[] { "PartitionKey" });
+        return queryResults.Select(entity => entity.PartitionKey).Distinct().ToList();
+    }
+    async Task SelectList(ChangeEventArgs e)
+    {
+        string selectedListName = e.Value.ToString();
+        users = await RetrieveList(selectedListName);
+    }
+    public class User
+    {
+        public string Name { get; set; }
+        public string Gender { get; set; }
+    }
+}
