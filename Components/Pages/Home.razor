@@ -3,7 +3,7 @@
 @using Azure.Data.Tables
 @inject HttpClient Http
 @inject TableServiceClient TableServiceClient
-<h3>Generate and Save Fake Users</h3>
+<h3>Generate and Save Fake Users (1 to 10)</h3>
 <div>
     <label>Number of Users:</label>
     <input type="number" @bind="numberOfUsers" min="1" max="10" />
@@ -12,7 +12,7 @@
 @if (users != null && users.Any())
 {
     <div class="user-display">
-    @foreach (var user in users)
+        @foreach (var user in users)
         {
             <p>@user.Name - @user.Gender</p>
         }
@@ -24,7 +24,19 @@
     </div>
 }
 
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="error-message">@errorMessage</div>
+}
+
+<style>
+    .error-message {
+        color: red;
+    }
+</style>
+
 @code {
+     private string errorMessage;
     int numberOfUsers = 1;
     string listName;
     List<User> users = new List<User>();
@@ -37,6 +49,14 @@
 
     private async Task GenerateUsers()
     {
+           // Check if numberOfUsers is between 1 and 10
+        if (numberOfUsers < 1 || numberOfUsers > 10)
+        {
+            // Show an error message to the user
+            errorMessage = "Number of users must be between 1 and 10.";
+            return; // Exit the method without saving
+        }
+
         try
         {
             var response = await Http.GetAsync($"https://randomuser.me/api/?results={numberOfUsers}&inc=name,location,gender");
@@ -65,6 +85,8 @@
         {
             // Handle exceptions (e.g., display an error message)
         }
+
+         errorMessage = string.Empty;
     }
 
     async Task SaveList()
@@ -84,6 +106,14 @@
 
             await tableClient.AddEntityAsync(userEntity);
         }
+
+        // After saving, clear the users list and listName to refresh the page
+        users.Clear();
+        listName = string.Empty;
+        numberOfUsers = 1;
+
+        // Force the component to re-render
+        StateHasChanged();
     }
 
 
@@ -95,7 +125,7 @@
         return queryResults.Select(entity => entity.PartitionKey).Distinct().ToList();
     }
 
-   
+
 
     public class RandomUserResponse
     {
